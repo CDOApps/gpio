@@ -9,7 +9,6 @@ LOCAL_SRC_FILES := gpio.c \
                    onewire.c \
                    dallas.c \
                    delay.c \
-                   map.c \
                    stack.c
 
 LOCAL_CFLAGS    += -UNDEBUG -DANDROID

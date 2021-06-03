@@ -38,4 +38,24 @@ static union { unsigned int x; float y; } HUGE_VAL = { .x = 0x7f800000 };
 #define HUGE_VALF (HUGE_VAL.y)
 #endif
 
+static inline jlong
+Java_java_lang_Object_getReserved(JNIEnv * env, jobject thiz) {
+    jclass clazz = (*env)->GetObjectClass(env, thiz);
+    jfieldID reservedID = (*env)->GetFieldID(env, clazz, "mReserved", "J");
+    if (!reservedID)
+        return 0l;
+
+    return (*env)->GetLongField(env, thiz, reservedID);
+}
+
+static inline void
+Java_java_lang_Object_setReserved(JNIEnv * env, jobject thiz, jlong value) {
+    jclass clazz = (*env)->GetObjectClass(env, thiz);
+    jfieldID reservedID = (*env)->GetFieldID(env, clazz, "mReserved", "J");
+    if (!reservedID)
+        return;
+
+    return (*env)->SetLongField(env, thiz, reservedID, value);
+}
+
 #endif //GPIO_COMMON_H

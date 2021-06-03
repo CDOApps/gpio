@@ -117,59 +117,31 @@ unsigned char OneWireInfoReadByte(OneWireInfoRef info) {
     return byte;
 }
 
-
-#include "map.h"
-
-static MapRef oneWires = NULL;
-
-JNIEXPORT jint JNICALL
-Java_com_cdoapps_gpio_OneWire_getHashCode(JNIEnv * env, jobject thiz) {
-    static jmethodID hashCodeMethodID = 0;
-
-    if (!hashCodeMethodID) {
-        jclass clazz = (*env)->GetObjectClass(env, thiz);
-        hashCodeMethodID = (*env)->GetMethodID(env, clazz, "hashCode", "()I");
-    }
-
-    return (*env)->CallIntMethod(env, thiz, hashCodeMethodID);
-}
-
-JNIEXPORT jlong JNICALL
-Java_com_cdoapps_gpio_OneWire_getInfo(JNIEnv * env, jobject thiz) {
-    return (jlong)MapGet(oneWires, Java_com_cdoapps_gpio_OneWire_getHashCode(env, thiz));
-}
-
-JNIEXPORT jlong JNICALL
-Java_com_cdoapps_gpio_GPIO_getInfo(JNIEnv * env, jobject thiz);
-
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_OneWire_configure(JNIEnv * env, jobject thiz, jobject gpio,
                                         jint pin) {
-    if (!oneWires)
-        oneWires = MapIntCreate();
-
-    OneWireInfoRef info = MapSet(oneWires, Java_com_cdoapps_gpio_OneWire_getHashCode(env, thiz),
-                                 OneWireInfoCreate(Java_com_cdoapps_gpio_GPIO_getInfo(env, gpio),
-                                                   pin));
-
+    OneWireInfoRef info = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, thiz);
     if (info)
         OneWireInfoFree(info);
+
+    GPIOInfoRef gpioInfo = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, gpio);
+    Java_java_lang_Object_setReserved(env, thiz, (jlong)OneWireInfoCreate(gpioInfo, pin));
 }
 
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_OneWire_destroy(JNIEnv * env, jobject thiz) {
-    OneWireInfoFree(MapRemove(oneWires, Java_com_cdoapps_gpio_OneWire_getHashCode(env, thiz)));
-
-    if (MapIsEmpty(oneWires)) {
-        MapFree(oneWires);
-        oneWires = NULL;
+    OneWireInfoRef info = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info) {
+        OneWireInfoFree(info);
+        Java_java_lang_Object_setReserved(env, thiz, 0l);
     }
 }
 
 JNIEXPORT jboolean JNICALL
 Java_com_cdoapps_gpio_OneWire_reset(JNIEnv * env, jobject thiz) {
-    if (OneWireInfoReset(Java_com_cdoapps_gpio_OneWire_getInfo(env, thiz)))
+    OneWireInfoRef info = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info && OneWireInfoReset(info))
         return JNI_TRUE;
 
     return JNI_FALSE;
@@ -177,22 +149,32 @@ Java_com_cdoapps_gpio_OneWire_reset(JNIEnv * env, jobject thiz) {
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_OneWire_writeBit(JNIEnv * env, jobject thiz, jboolean bit) {
-    OneWireInfoWriteBit(Java_com_cdoapps_gpio_OneWire_getInfo(env, thiz), bit ? TRUE : FALSE);
+    OneWireInfoRef info = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        OneWireInfoWriteBit(info, bit ? TRUE : FALSE);
 }
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_OneWire_writeByte(JNIEnv * env, jobject thiz, jbyte value) {
-    OneWireInfoWriteByte(Java_com_cdoapps_gpio_OneWire_getInfo(env, thiz), (unsigned char)value);
+    OneWireInfoRef info = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        OneWireInfoWriteByte(info, (unsigned char)value);
 }
 
 JNIEXPORT jboolean JNICALL
 Java_com_cdoapps_gpio_OneWire_readBit(JNIEnv * env, jobject thiz) {
-    return OneWireInfoReadBit(Java_com_cdoapps_gpio_OneWire_getInfo(env, thiz)) ?
-    JNI_TRUE :
-    JNI_FALSE;
+    OneWireInfoRef info = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info && OneWireInfoReadBit(info))
+        return JNI_TRUE;
+
+    return JNI_FALSE;
 }
 
 JNIEXPORT jbyte JNICALL
 Java_com_cdoapps_gpio_OneWire_readByte(JNIEnv * env, jobject thiz) {
-    return (jbyte)OneWireInfoReadByte(Java_com_cdoapps_gpio_OneWire_getInfo(env, thiz));
+    OneWireInfoRef info = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        return OneWireInfoReadByte(info);
+
+    return 0x0;
 }

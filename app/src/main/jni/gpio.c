@@ -195,75 +195,68 @@ int GPIOInfoGetValue(GPIOInfoRef info, int pin) {
     return (value == '0') ? GPIO_PIN_VALUE_LOW : GPIO_PIN_VALUE_HIGH;
 }
 
-#include "map.h"
-
-static MapRef gpios = NULL;
-
-JNIEXPORT jint JNICALL
-Java_com_cdoapps_gpio_GPIO_getHashCode(JNIEnv * env, jobject thiz) {
-    static jmethodID hashCodeMethodID = 0;
-
-    if (!hashCodeMethodID) {
-        jclass clazz = (*env)->GetObjectClass(env, thiz);
-        hashCodeMethodID = (*env)->GetMethodID(env, clazz, "hashCode", "()I");
-    }
-
-    return (*env)->CallIntMethod(env, thiz, hashCodeMethodID);
-}
-
-JNIEXPORT jlong JNICALL
-Java_com_cdoapps_gpio_GPIO_getInfo(JNIEnv * env, jobject thiz) {
-    return (jlong)MapGet(gpios, Java_com_cdoapps_gpio_GPIO_getHashCode(env, thiz));
-}
-
-
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_GPIO_onResume(JNIEnv * env, jobject thiz) {
-    if (!gpios)
-        gpios = MapIntCreate();
+    GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        GPIOInfoFree(info);
 
-    MapSet(gpios, Java_com_cdoapps_gpio_GPIO_getHashCode(env, thiz), GPIOInfoAlloc());
+    Java_java_lang_Object_setReserved(env, thiz, (jlong)GPIOInfoAlloc());
 }
 
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_GPIO_onPause(JNIEnv * env, jobject thiz) {
-    GPIOInfoFree(MapRemove(gpios, Java_com_cdoapps_gpio_GPIO_getHashCode(env, thiz)));
-
-    if (MapIsEmpty(gpios)) {
-        MapFree(gpios);
-        gpios = NULL;
+    GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info) {
+        GPIOInfoFree(info);
+        Java_java_lang_Object_setReserved(env, thiz, 0l);
     }
 }
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_GPIO_export(JNIEnv * env, jobject thiz, jint pin) {
-    GPIOInfoExport(Java_com_cdoapps_gpio_GPIO_getInfo(env, thiz), pin);
+    GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        GPIOInfoExport(info, pin);
 }
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_GPIO_unexport(JNIEnv * env, jobject thiz, jint pin) {
-    GPIOInfoUnexport(Java_com_cdoapps_gpio_GPIO_getInfo(env, thiz), pin);
+    GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        GPIOInfoUnexport(info, pin);
 }
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_GPIO_unexportAll(JNIEnv * env, jobject thiz) {
-    GPIOInfoUnexportAll(Java_com_cdoapps_gpio_GPIO_getInfo(env, thiz));
+    GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        GPIOInfoUnexportAll(info);
 }
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_GPIO_setMode(JNIEnv * env, jobject thiz, jint pin, jstring mode) {
-    const char *utf8Mode = (*env)->GetStringUTFChars(env, mode, NULL);
-    GPIOInfoSetMode(Java_com_cdoapps_gpio_GPIO_getInfo(env, thiz), pin, utf8Mode);
-    (*env)->ReleaseStringUTFChars(env, mode, utf8Mode);
+    GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info) {
+        const char *utf8Mode = (*env)->GetStringUTFChars(env, mode, NULL);
+        GPIOInfoSetMode(info, pin, utf8Mode);
+        (*env)->ReleaseStringUTFChars(env, mode, utf8Mode);
+    }
 }
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_GPIO_setValue(JNIEnv * env, jobject thiz, jint pin, jint value) {
-    GPIOInfoSetValue(Java_com_cdoapps_gpio_GPIO_getInfo(env, thiz), pin, value);
+    GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        GPIOInfoSetValue(info, pin, value);
 }
 
 JNIEXPORT jint JNICALL
 Java_com_cdoapps_gpio_GPIO_getValue(JNIEnv *env, jobject thiz, jint pin) {
-    return GPIOInfoGetValue(Java_com_cdoapps_gpio_GPIO_getInfo(env, thiz), pin);
+    GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        return GPIOInfoGetValue(info, pin);
+
+    return -1;
 }

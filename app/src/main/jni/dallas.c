@@ -30,7 +30,7 @@ struct DallasInfo {
     BOOL parasiticPowerMode;
 };
 
-static unsigned char DALLAS_CRC_TABLE[] = {
+static const unsigned char DALLAS_CRC_TABLE[] = {
         0, 94, 188, 226, 97, 63, 221, 131, 194, 156, 126, 32, 163, 253, 31, 65,
         157, 195, 33, 127, 252, 162, 64, 30, 95, 1, 227, 189, 62, 96, 130, 220,
         35, 125, 159, 193, 66, 28, 254, 160, 225, 191, 93, 3, 128, 222, 60, 98,
@@ -313,34 +313,14 @@ BOOL DallasInfoReadPowerSupply(DallasInfoRef info) {
     return info->parasiticPowerMode;
 }
 
-#include "map.h"
-
-static MapRef dallas = NULL;
-
-JNIEXPORT jint JNICALL
-Java_com_cdoapps_gpio_Dallas_getHashCode(JNIEnv * env, jobject thiz) {
-    static jmethodID hashCodeMethodID = 0;
-
-    if (!hashCodeMethodID) {
-        jclass clazz = (*env)->GetObjectClass(env, thiz);
-        hashCodeMethodID = (*env)->GetMethodID(env, clazz, "hashCode", "()I");
-    }
-
-    return (*env)->CallIntMethod(env, thiz, hashCodeMethodID);
-}
-
-JNIEXPORT jlong JNICALL
-Java_com_cdoapps_gpio_Dallas_getInfo(JNIEnv * env, jobject thiz) {
-    return (jlong)MapGet(dallas, Java_com_cdoapps_gpio_Dallas_getHashCode(env, thiz));
-}
-
-JNIEXPORT jlong JNICALL
-Java_com_cdoapps_gpio_OneWire_getInfo(JNIEnv * env, jobject thiz);
-
 JNIEXPORT jobject JNICALL
 Java_com_cdoapps_gpio_Dallas_listSensors(JNIEnv *env, jclass clazz, jobject bus) {
     StackRef stack = StackCreate(FALSE);
-    DallasInfoList(Java_com_cdoapps_gpio_OneWire_getInfo(env, bus), stack);
+    OneWireInfoRef oneWireInfo = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, bus);
+    if (!oneWireInfo)
+        return NULL;
+
+    DallasInfoList(oneWireInfo, stack);
 
     jclass listClazz = (*env)->FindClass(env, "java/util/ArrayList");
     jmethodID listConstructor = (*env)->GetMethodID(env, listClazz, "<init>", "()V");
@@ -353,11 +333,7 @@ Java_com_cdoapps_gpio_Dallas_listSensors(JNIEnv *env, jclass clazz, jobject bus)
     while ((info = StackPop(stack))) {
         jobject thiz = (*env)->NewObject(env, clazz, dallasConstructor);
         (*env)->CallBooleanMethod(env, list, add, thiz);
-
-        if (!dallas)
-            dallas = MapIntCreate();
-
-        MapSet(dallas, Java_com_cdoapps_gpio_Dallas_getHashCode(env, thiz), info);
+        Java_java_lang_Object_setReserved(env, thiz, (jlong)info);
     }
 
     StackFree(stack);
@@ -367,25 +343,31 @@ Java_com_cdoapps_gpio_Dallas_listSensors(JNIEnv *env, jclass clazz, jobject bus)
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_Dallas_destroy(JNIEnv * env, jobject thiz) {
-    DallasInfoFree(MapRemove(dallas, Java_com_cdoapps_gpio_Dallas_getHashCode(env, thiz)));
-
-    if (MapIsEmpty(dallas)) {
-        MapFree(dallas);
-        dallas = NULL;
+    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info) {
+        DallasInfoFree(info);
+        Java_java_lang_Object_setReserved(env, thiz, 0l);
     }
 }
 
 JNIEXPORT jstring JNICALL
 Java_com_cdoapps_gpio_Dallas_getRom(JNIEnv *env, jobject thiz) {
-    return (*env)->NewStringUTF(env, DallasInfoGetRom(
-            Java_com_cdoapps_gpio_Dallas_getInfo(env, thiz)));
+    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        return (*env)->NewStringUTF(env, DallasInfoGetRom(info));
+
+    return NULL;
 }
 
 JNIEXPORT jobject JNICALL
 Java_com_cdoapps_gpio_Dallas_getFamily(JNIEnv *env, jobject thiz) {
+    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (!info)
+        return NULL;
+
     jclass clazz = (*env)->FindClass(env, "com/cdoapps/gpio/Dallas$SensorFamily");
 
-    switch (DallasInfoGetFamily(Java_com_cdoapps_gpio_Dallas_getInfo(env, thiz))) {
+    switch (DallasInfoGetFamily(info)) {
         case DallasSensorFamilyDS18S20: {
             jfieldID fieldID = (*env)->GetStaticFieldID(
                     env,
@@ -415,18 +397,26 @@ Java_com_cdoapps_gpio_Dallas_getFamily(JNIEnv *env, jobject thiz) {
 
 JNIEXPORT jboolean JNICALL
 Java_com_cdoapps_gpio_Dallas_usesParasiticPowerMode(JNIEnv *env, jobject thiz) {
-    return DallasInfoUsesParasiticPowerMode(Java_com_cdoapps_gpio_Dallas_getInfo(env, thiz)) ?
-    JNI_TRUE :
-    JNI_FALSE;
+    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info && DallasInfoUsesParasiticPowerMode(info))
+        return JNI_TRUE;
+
+    return JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_Dallas_convert(JNIEnv * env, jclass clazz, jobject bus,
                                      jboolean parasiticPowerMode) {
-    DallasInfoConvert(Java_com_cdoapps_gpio_OneWire_getInfo(env, bus), parasiticPowerMode);
+    OneWireInfoRef oneWireInfo = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, bus);
+    if (oneWireInfo)
+        DallasInfoConvert(oneWireInfo, parasiticPowerMode);
 }
 
 JNIEXPORT jfloat JNICALL
 Java_com_cdoapps_gpio_Dallas_getTemperature(JNIEnv *env, jobject thiz) {
-    return (jfloat)DallasInfoGetTemperature(Java_com_cdoapps_gpio_Dallas_getInfo(env, thiz));
+    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        return (jfloat)DallasInfoGetTemperature(info);
+
+    return HUGE_VALF;
 }

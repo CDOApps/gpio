@@ -35,6 +35,7 @@ public class GPIO {
         return instance;
     }
 
+    private long mReserved;
     private GPIO() {
     }
 

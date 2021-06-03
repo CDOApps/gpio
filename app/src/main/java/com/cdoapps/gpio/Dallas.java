@@ -44,6 +44,7 @@ public class Dallas {
         DS18B20
     }
 
+    private long mReserved;
     private Dallas() {
     }
 

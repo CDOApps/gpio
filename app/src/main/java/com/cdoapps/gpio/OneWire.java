@@ -30,6 +30,8 @@ public class OneWire {
         System.loadLibrary("gpio");
     }
 
+    private long mReserved;
+
     /**
      * Initializes the 1-Wire communications over one pin.
      *

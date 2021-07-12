@@ -40,6 +40,14 @@ public class OneWire {
      */
     public native void configure(GPIO gpio, int pin);
     /**
+     * Initializes the 1-Wire communications over two pins.
+     *
+     * @param gpio a {@code GPIO} instance used to initialize and communicate with the 1-Wire bus.
+     * @param inputPin the WiringPi address of the pin which will be read for the 1-Wire bus.
+     * @param outputPin the WiringPi address of the pin which will be written for the 1-Wire bus.
+     */
+    public native void configureBuffered(GPIO gpio, int inputPin, int outputPin);
+    /**
      * Terminates the communications with this 1-Wire bus and free the resources which were
      * associated to it.
      */

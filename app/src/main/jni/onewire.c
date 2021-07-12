@@ -22,41 +22,72 @@
 
 struct OneWireInfo {
     GPIOInfoRef gpioInfo;
-    int pin;
+    int inputPin;
+    int outputPin;
 };
 
 OneWireInfoRef OneWireInfoCreate(GPIOInfoRef gpioInfo, int pin) {
     OneWireInfoRef info = malloc(sizeof(struct OneWireInfo));
 
     info->gpioInfo = gpioInfo;
-    info->pin = pin;
+    info->inputPin = pin;
+    info->outputPin = -1;
 
     GPIOInfoExport(gpioInfo, pin);
 
     return info;
 }
 
+OneWireInfoRef OneWireInfoCreateBuffered(GPIOInfoRef gpioInfo, int inputPin, int outputPin) {
+    OneWireInfoRef info = OneWireInfoCreate(gpioInfo, inputPin);
+
+    info->outputPin = outputPin;
+    GPIOInfoExport(gpioInfo, outputPin);
+
+    GPIOInfoSetMode(info->gpioInfo, inputPin, GPIO_PIN_MODE_INPUT);
+    GPIOInfoSetMode(info->gpioInfo, outputPin, GPIO_PIN_MODE_OUTPUT);
+
+    return info;
+}
+
 void OneWireInfoFree(OneWireInfoRef info) {
-    GPIOInfoUnexport(info->gpioInfo, info->pin);
+    GPIOInfoUnexport(info->gpioInfo, info->inputPin);
+    if (info->outputPin != -1)
+        GPIOInfoUnexport(info->gpioInfo, info->outputPin);
     free(info);
 }
 
 #include "delay.h"
+void OneWireInfoPullUp(OneWireInfoRef info) {
+    if (info->outputPin == -1) {
+        GPIOInfoSetMode(info->gpioInfo, info->inputPin, GPIO_PIN_MODE_INPUT);
+    } else {
+        GPIOInfoSetValue(info->gpioInfo, info->outputPin, GPIO_PIN_VALUE_LOW);
+    }
+}
+
+void OneWireInfoPullDown(OneWireInfoRef info) {
+    if (info->outputPin == -1) {
+        GPIOInfoSetMode(info->gpioInfo, info->inputPin, GPIO_PIN_MODE_OUTPUT);
+        GPIOInfoSetValue(info->gpioInfo, info->inputPin, GPIO_PIN_VALUE_LOW);
+    } else {
+        GPIOInfoSetValue(info->gpioInfo, info->outputPin, GPIO_PIN_VALUE_HIGH);
+    }
+}
 
 BOOL OneWireInfoReset(OneWireInfoRef info) {
-    GPIOInfoSetMode(info->gpioInfo, info->pin, GPIO_PIN_MODE_INPUT);
+    OneWireInfoPullUp(info);
     DelayMicro(10);
 
-    GPIOInfoSetMode(info->gpioInfo, info->pin, GPIO_PIN_MODE_OUTPUT);
-    GPIOInfoSetValue(info->gpioInfo, info->pin, GPIO_PIN_VALUE_LOW);
+    OneWireInfoPullDown(info);
 
     struct timespec time = { .tv_sec = 0, .tv_nsec = 480000 };
     nanosleep(&time, NULL);
 
-    GPIOInfoSetMode(info->gpioInfo, info->pin, GPIO_PIN_MODE_INPUT);
+    OneWireInfoPullUp(info);
     DelayMicro(60);
 
-    if (GPIOInfoGetValue(info->gpioInfo, info->pin) == GPIO_PIN_VALUE_LOW) {
+    if (GPIOInfoGetValue(info->gpioInfo, info->inputPin) == GPIO_PIN_VALUE_LOW) {
         DelayMicro(420);
         return TRUE;
     }
@@ -66,16 +97,15 @@ BOOL OneWireInfoReset(OneWireInfoRef info) {
 
 
 void OneWireInfoWriteBit(OneWireInfoRef info, BOOL bit) {
-    GPIOInfoSetMode(info->gpioInfo, info->pin, GPIO_PIN_MODE_OUTPUT);
-    GPIOInfoSetValue(info->gpioInfo, info->pin, GPIO_PIN_VALUE_LOW);
+    OneWireInfoPullDown(info);
 
     if (bit) {
         DelayMicro(1);
-        GPIOInfoSetMode(info->gpioInfo, info->pin, GPIO_PIN_MODE_INPUT);
+        OneWireInfoPullUp(info);
         DelayMicro(60);
     } else {
         DelayMicro(60);
-        GPIOInfoSetMode(info->gpioInfo, info->pin, GPIO_PIN_MODE_INPUT);
+        OneWireInfoPullUp(info);
         DelayMicro(1);
     }
 }
@@ -92,14 +122,13 @@ void OneWireInfoWriteByte(OneWireInfoRef info, unsigned char value) {
 
 
 BOOL OneWireInfoReadBit(OneWireInfoRef info) {
-    GPIOInfoSetMode(info->gpioInfo, info->pin, GPIO_PIN_MODE_OUTPUT);
-    GPIOInfoSetValue(info->gpioInfo, info->pin, GPIO_PIN_VALUE_LOW);
+    OneWireInfoPullDown(info);
 
     DelayMicro(1);
-    GPIOInfoSetMode(info->gpioInfo, info->pin, GPIO_PIN_MODE_INPUT);
+    OneWireInfoPullUp(info);
     DelayMicro(2);
 
-    BOOL bit = (GPIOInfoGetValue(info->gpioInfo, info->pin) != GPIO_PIN_VALUE_LOW);
+    BOOL bit = (GPIOInfoGetValue(info->gpioInfo, info->inputPin) != GPIO_PIN_VALUE_LOW);
     DelayMicro(60);
 
     return bit;
@@ -126,6 +155,19 @@ Java_com_cdoapps_gpio_OneWire_configure(JNIEnv * env, jobject thiz, jobject gpio
 
     GPIOInfoRef gpioInfo = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, gpio);
     Java_java_lang_Object_setReserved(env, thiz, (jlong)OneWireInfoCreate(gpioInfo, pin));
+}
+
+JNIEXPORT void JNICALL
+Java_com_cdoapps_gpio_OneWire_configureBuffered(JNIEnv * env, jobject thiz,
+                                                jobject gpio, jint inputPin, jint outputPin) {
+    OneWireInfoRef info = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        OneWireInfoFree(info);
+
+    GPIOInfoRef gpioInfo = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, gpio);
+    Java_java_lang_Object_setReserved(env, thiz, (jlong)OneWireInfoCreateBuffered(gpioInfo,
+                                                                                  inputPin,
+                                                                                  outputPin));
 }
 
 

@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
         gpio.onResume();
 
         OneWire oneWire = new OneWire();
-        oneWire.configure(gpio, 0);
+        oneWire.configureBuffered(gpio, 0, 2);
 
         thread = new Thread() {
             @Override

@@ -41,6 +41,18 @@ typedef struct OneWireInfo *OneWireInfoRef;
  */
 OneWireInfoRef OneWireInfoCreate(GPIOInfoRef gpioInfo, int pin);
 /**
+ * Returns a {@code OneWireInfo} object representing a 1-Wire bus which is initialized to
+ * communicate over two pins.
+ *
+ * @param gpioInfo a {@code GPIOInfo} instance used to initialize and communicate with the 1-Wire
+ *                 bus.
+ * @param inputPin the WiringPi address of the pin which will be read for the 1-Wire bus.
+ * @param outputPin the WiringPi address of the pin which will be written for the 1-Wire bus.
+ * @return a {@code OneWireInfo} object representing a 1-Wire bus which is initialized to
+ *         communicate over one pin.
+ */
+OneWireInfoRef OneWireInfoCreateBuffered(GPIOInfoRef gpioInfo, int inputPin, int outputPin);
+/**
  * Destroys the resources associated to a 1-Wire bus.
  *
  * @param info a {@code OneWireInfo} object representing the 1-Wire bus to destroy.

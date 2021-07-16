@@ -23,7 +23,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.os.Bundle;
 import android.view.ViewGroup;
 
-import com.cdoapps.gpio.Dallas;
+import com.cdoapps.gpio.Thermometer;
 import com.cdoapps.gpio.GPIO;
 import com.cdoapps.gpio.OneWire;
 import com.cdoapps.sample.databinding.ActivityMainBinding;
@@ -102,19 +102,19 @@ public class MainActivity extends AppCompatActivity {
         thread = new Thread() {
             @Override
             public void run() {
-                List<Dallas> sensors = Dallas.listSensors(oneWire);
+                List<Thermometer> thermometers = Thermometer.listAll(oneWire);
 
                 boolean stop = false;
                 while (!stop) {
-                    Dallas.convert(oneWire, sensors);
+                    Thermometer.convert(oneWire, thermometers);
 
                     synchronized (items) {
                         items.clear();
-                        for (Dallas sensor : sensors) {
+                        for (Thermometer thermometer : thermometers) {
                             Map<String, String> item = new HashMap<>();
-                            item.put("rom", sensor.getRom());
-                            item.put("family", sensor.getFamily().toString());
-                            item.put("temperature", sensor.getTemperature() + "°C");
+                            item.put("rom", thermometer.getRom());
+                            item.put("family", thermometer.getFamily().toString());
+                            item.put("temperature", thermometer.getTemperature() + "°C");
                             items.add(item);
                         }
                     }
@@ -132,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
 
-                Dallas.destroyAll(sensors);
+                Thermometer.destroyAll(thermometers);
                 oneWire.destroy();
             }
         };

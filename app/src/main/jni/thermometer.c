@@ -16,21 +16,21 @@
 // https://github.com/danjperron/BitBangingDS18B20
 
 #include "common.h"
-#include "dallas.h"
+#include "thermometer.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-struct DallasInfo {
+struct ThermometerInfo {
     OneWireInfoRef oneWireInfo;
 
     char rom[17];
-    DallasSensorFamily family;
+    ThermometerFamily family;
     BOOL parasiticPowerMode;
 };
 
-static const unsigned char DALLAS_CRC_TABLE[] = {
+static const unsigned char THERMOMETER_CRC_TABLE[] = {
         0, 94, 188, 226, 97, 63, 221, 131, 194, 156, 126, 32, 163, 253, 31, 65,
         157, 195, 33, 127, 252, 162, 64, 30, 95, 1, 227, 189, 62, 96, 130, 220,
         35, 125, 159, 193, 66, 28, 254, 160, 225, 191, 93, 3, 128, 222, 60, 98,
@@ -49,60 +49,60 @@ static const unsigned char DALLAS_CRC_TABLE[] = {
         116, 42, 200, 150, 21, 75, 169, 247, 182, 232, 10, 84, 215, 137, 107, 53
 };
 
-BOOL DallasInfoCheckCRC(unsigned char *data, int size) {
+BOOL ThermometerInfoCheckCRC(unsigned char *data, int size) {
     unsigned char crc = 0;
 
     for (int index = 0 ; index < size ; index++)
-        crc = DALLAS_CRC_TABLE[crc ^ data[index]];
+        crc = THERMOMETER_CRC_TABLE[crc ^ data[index]];
 
     return (0x0 == crc);
 }
 
-static inline BOOL DallasInfoGetRomBit(unsigned long long *rom, char position) {
+static inline BOOL ThermometerInfoGetRomBit(unsigned long long *rom, char position) {
     return (*rom & (0x1ull << position)) ? TRUE : FALSE;
 }
 
-static inline void DallasInfoSetRomBit(unsigned long long *rom, char position, BOOL bit) {
+static inline void ThermometerInfoSetRomBit(unsigned long long *rom, char position, BOOL bit) {
     if (bit)
         *rom |= (0x1ull << position);
     else
         *rom &= ~(0x1ull << position);
 }
 
-#define DALLAS_SEARCH_ROM_COMMAND 0xF0
-#define DALLAS_SEARCH_SENSOR_RESULT_LEAF 0
-#define DALLAS_SEARCH_SENSOR_RESULT_NODE 1
-#define DALLAS_SEARCH_SENSOR_ERROR_NO_RESET -1
-#define DALLAS_SEARCH_SENSOR_ERROR_NO_MATCH -2
+#define THERMOMETER_SEARCH_ROM_COMMAND 0xF0
+#define THERMOMETER_SEARCH_RESULT_LEAF 0
+#define THERMOMETER_SEARCH_RESULT_NODE 1
+#define THERMOMETER_SEARCH_ERROR_NO_RESET -1
+#define THERMOMETER_SEARCH_ERROR_NO_MATCH -2
 
-int DallasInfoSearchSensor(OneWireInfoRef oneWireInfo, unsigned long long *rom, int *lastPosition) {
+int ThermometerInfoSearch(OneWireInfoRef oneWireInfo, unsigned long long *rom, int *lastPosition) {
     if (*lastPosition < 0)
-        return DALLAS_SEARCH_SENSOR_RESULT_LEAF;
+        return THERMOMETER_SEARCH_RESULT_LEAF;
 
     if (*lastPosition < 64) {
-        DallasInfoSetRomBit(rom, *lastPosition, TRUE);
+        ThermometerInfoSetRomBit(rom, *lastPosition, TRUE);
 
         for (int position = *lastPosition + 1 ; position < 64 ; position++)
-            DallasInfoSetRomBit(rom, position, FALSE);
+            ThermometerInfoSetRomBit(rom, position, FALSE);
     }
 
     *lastPosition = -1;
 
     if (!OneWireInfoReset(oneWireInfo))
-        return DALLAS_SEARCH_SENSOR_ERROR_NO_RESET;
+        return THERMOMETER_SEARCH_ERROR_NO_RESET;
 
     BOOL bits[] = {0x0, 0x0};
-    OneWireInfoWriteByte(oneWireInfo, DALLAS_SEARCH_ROM_COMMAND);
+    OneWireInfoWriteByte(oneWireInfo, THERMOMETER_SEARCH_ROM_COMMAND);
 
     for (int position = 0 ; position < 64 ; position++) {
         bits[0] = OneWireInfoReadBit(oneWireInfo);
         bits[1] = OneWireInfoReadBit(oneWireInfo);
 
         if (bits[0] && bits[1])
-            return DALLAS_SEARCH_SENSOR_ERROR_NO_MATCH;
+            return THERMOMETER_SEARCH_ERROR_NO_MATCH;
 
         if (!bits[0] && !bits[1]) {
-            if (DallasInfoGetRomBit(rom, position)) {
+            if (ThermometerInfoGetRomBit(rom, position)) {
                 OneWireInfoWriteBit(oneWireInfo, TRUE);
             } else {
                 *lastPosition = position;
@@ -110,18 +110,18 @@ int DallasInfoSearchSensor(OneWireInfoRef oneWireInfo, unsigned long long *rom, 
             }
         } else if (!bits[0]) {
             OneWireInfoWriteBit(oneWireInfo, FALSE);
-            DallasInfoSetRomBit(rom, position, FALSE);
+            ThermometerInfoSetRomBit(rom, position, FALSE);
         } else {
             OneWireInfoWriteBit(oneWireInfo, TRUE);
-            DallasInfoSetRomBit(rom, position,TRUE);
+            ThermometerInfoSetRomBit(rom, position,TRUE);
         }
     }
 
-    return DALLAS_SEARCH_SENSOR_RESULT_NODE;
+    return THERMOMETER_SEARCH_RESULT_NODE;
 }
 
-BOOL DallasInfoReadPowerSupply(DallasInfoRef info);
-void DallasInfoList(OneWireInfoRef oneWireInfo, StackRef stack) {
+BOOL ThermometerInfoReadPowerSupply(ThermometerInfoRef info);
+void ThermometerInfoList(OneWireInfoRef oneWireInfo, StackRef stack) {
     if (!stack)
         return;
 
@@ -135,18 +135,18 @@ void DallasInfoList(OneWireInfoRef oneWireInfo, StackRef stack) {
         unsigned long long rom = previousRom;
         int position = previousPosition;
 
-        switch (DallasInfoSearchSensor(oneWireInfo, &rom, &position)) {
-            case DALLAS_SEARCH_SENSOR_RESULT_LEAF:
+        switch (ThermometerInfoSearch(oneWireInfo, &rom, &position)) {
+            case THERMOMETER_SEARCH_RESULT_LEAF:
                 retry = 10;
                 break;
 
-            case DALLAS_SEARCH_SENSOR_RESULT_NODE:
-                if (DallasInfoCheckCRC((unsigned char *) &rom, 8)) {
+            case THERMOMETER_SEARCH_RESULT_NODE:
+                if (ThermometerInfoCheckCRC((unsigned char *) &rom, 8)) {
                     previousRom = rom;
                     previousPosition = position;
 
                     sprintf(buf, "%016llx", rom);
-                    DallasInfoRef info = DallasInfoCreate(oneWireInfo, buf, FALSE);
+                    ThermometerInfoRef info = ThermometerInfoCreate(oneWireInfo, buf, FALSE);
 
                     if (info)
                         StackPush(stack, info);
@@ -161,33 +161,33 @@ void DallasInfoList(OneWireInfoRef oneWireInfo, StackRef stack) {
         }
     }
 
-    const DallasInfoRef *info = StackGetBaseAddress(stack);
+    const ThermometerInfoRef *info = StackGetBaseAddress(stack);
     unsigned int length = StackLength(stack);
 
     for (unsigned int index = 0 ; index < length ; index++)
-        DallasInfoReadPowerSupply(info[index]);
+        ThermometerInfoReadPowerSupply(info[index]);
 }
 
-DallasInfoRef DallasInfoCreate(OneWireInfoRef oneWireInfo, const char *rom,
+ThermometerInfoRef ThermometerInfoCreate(OneWireInfoRef oneWireInfo, const char *rom,
                                BOOL parasiticPowerMode) {
     int byte = 0x0;
     sscanf(&rom[14], "%02x", &byte);
 
-    DallasSensorFamily family = DallasSensorFamilyUnknown;
+    ThermometerFamily family = ThermometerFamilyUnknown;
     switch (byte) {
         case 0x10:
-            family = DallasSensorFamilyDS18S20;
+            family = ThermometerFamilyDS18S20;
             break;
 
         case 0x28:
-            family = DallasSensorFamilyDS18B20;
+            family = ThermometerFamilyDS18B20;
             break;
 
         default:
             return NULL;
     }
 
-    DallasInfoRef info = malloc(sizeof(struct DallasInfo));
+    ThermometerInfoRef info = malloc(sizeof(struct ThermometerInfo));
 
     info->oneWireInfo = oneWireInfo;
     strcpy(info->rom, rom);
@@ -197,45 +197,45 @@ DallasInfoRef DallasInfoCreate(OneWireInfoRef oneWireInfo, const char *rom,
     return info;
 }
 
-void DallasInfoFree(DallasInfoRef info) {
+void ThermometerInfoFree(ThermometerInfoRef info) {
     free(info);
 }
 
-const char *DallasInfoGetRom(DallasInfoRef info) {
+const char *ThermometerInfoGetRom(ThermometerInfoRef info) {
     return info->rom;
 }
 
-DallasSensorFamily DallasInfoGetFamily(DallasInfoRef info) {
+ThermometerFamily ThermometerInfoGetFamily(ThermometerInfoRef info) {
     return info->family;
 }
 
-BOOL DallasInfoUsesParasiticPowerMode(DallasInfoRef info) {
+BOOL ThermometerInfoUsesParasiticPowerMode(ThermometerInfoRef info) {
     return info->parasiticPowerMode;
 }
 
-#define DALLAS_SELECT_COMMAND 0x55
+#define THERMOMETER_SELECT_COMMAND 0x55
 
-void DallasInfoSelect(DallasInfoRef info) {
+void ThermometerInfoSelect(ThermometerInfoRef info) {
     unsigned long long rom = 0x0;
     sscanf(info->rom, "%016llx", &rom);
 
-    OneWireInfoWriteByte(info->oneWireInfo, DALLAS_SELECT_COMMAND);
+    OneWireInfoWriteByte(info->oneWireInfo, THERMOMETER_SELECT_COMMAND);
 
     for (int position = 0 ; position < 64 ; position++)
-        OneWireInfoWriteBit(info->oneWireInfo, DallasInfoGetRomBit(&rom, position));
+        OneWireInfoWriteBit(info->oneWireInfo, ThermometerInfoGetRomBit(&rom, position));
 }
 
 #include <time.h>
 
-#define DALLAS_SKIP_ROM_COMMAND 0xCC
-#define DALLAS_CONVERT_T_COMMAND 0x44
+#define THERMOMETER_SKIP_ROM_COMMAND 0xCC
+#define THERMOMETER_CONVERT_T_COMMAND 0x44
 
-void DallasInfoConvert(OneWireInfoRef oneWireInfo, BOOL parasiticPowerMode) {
+void ThermometerInfoConvert(OneWireInfoRef oneWireInfo, BOOL parasiticPowerMode) {
     if (!OneWireInfoReset(oneWireInfo))
         return;
 
-    OneWireInfoWriteByte(oneWireInfo, DALLAS_SKIP_ROM_COMMAND);
-    OneWireInfoWriteByte(oneWireInfo, DALLAS_CONVERT_T_COMMAND);
+    OneWireInfoWriteByte(oneWireInfo, THERMOMETER_SKIP_ROM_COMMAND);
+    OneWireInfoWriteByte(oneWireInfo, THERMOMETER_CONVERT_T_COMMAND);
 
     if (parasiticPowerMode) {
         struct timespec time = { .tv_sec = 1, .tv_nsec = 0 };
@@ -245,24 +245,24 @@ void DallasInfoConvert(OneWireInfoRef oneWireInfo, BOOL parasiticPowerMode) {
     }
 }
 
-#define DALLAS_READ_SCRATCHPAD_COMMAND 0xBE
+#define THERMOMETER_READ_SCRATCHPAD_COMMAND 0xBE
 
-void DallasInfoReadScratchpad(DallasInfoRef info, unsigned char *scratchpad) {
-    DallasInfoSelect(info);
-    OneWireInfoWriteByte(info->oneWireInfo, DALLAS_READ_SCRATCHPAD_COMMAND);
+void ThermometerInfoReadScratchpad(ThermometerInfoRef info, unsigned char *scratchpad) {
+    ThermometerInfoSelect(info);
+    OneWireInfoWriteByte(info->oneWireInfo, THERMOMETER_READ_SCRATCHPAD_COMMAND);
 
     for (int position = 0 ; position < 9 ; position++)
         scratchpad[position] = OneWireInfoReadByte(info->oneWireInfo);
 }
 
-float DallasInfoGetTemperature(DallasInfoRef info) {
+float ThermometerInfoGetTemperature(ThermometerInfoRef info) {
     if (!OneWireInfoReset(info->oneWireInfo))
         return HUGE_VALF;
 
     unsigned char scratchpad[] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-    DallasInfoReadScratchpad(info, scratchpad);
+    ThermometerInfoReadScratchpad(info, scratchpad);
 
-    if (!DallasInfoCheckCRC(scratchpad, 9))
+    if (!ThermometerInfoCheckCRC(scratchpad, 9))
         return HUGE_VALF;
 
     float value = 0.f;
@@ -270,7 +270,7 @@ float DallasInfoGetTemperature(DallasInfoRef info) {
     unsigned char sign = scratchpad[1];
 
     switch (info->family) {
-        case DallasSensorFamilyDS18S20: {
+        case ThermometerFamilyDS18S20: {
             unsigned char remain = scratchpad[6];
             unsigned char cpc = scratchpad[7];
 
@@ -283,7 +283,7 @@ float DallasInfoGetTemperature(DallasInfoRef info) {
             break;
         }
 
-        case DallasSensorFamilyDS18B20:
+        case ThermometerFamilyDS18B20:
             temperature = (sign << 8) | temperature;
 
             value = temperature / 16.f;
@@ -300,38 +300,38 @@ float DallasInfoGetTemperature(DallasInfoRef info) {
     return value;
 }
 
-#define DALLAS_READ_POWER_SUPPLY_COMMAND 0xB4
+#define THERMOMETER_READ_POWER_SUPPLY_COMMAND 0xB4
 
-BOOL DallasInfoReadPowerSupply(DallasInfoRef info) {
+BOOL ThermometerInfoReadPowerSupply(ThermometerInfoRef info) {
     if (!OneWireInfoReset(info->oneWireInfo))
         return TRUE;
 
-    DallasInfoSelect(info);
-    OneWireInfoWriteByte(info->oneWireInfo, DALLAS_READ_POWER_SUPPLY_COMMAND);
+    ThermometerInfoSelect(info);
+    OneWireInfoWriteByte(info->oneWireInfo, THERMOMETER_READ_POWER_SUPPLY_COMMAND);
 
     info->parasiticPowerMode = OneWireInfoReadBit(info->oneWireInfo) ? FALSE : TRUE;
     return info->parasiticPowerMode;
 }
 
 JNIEXPORT jobject JNICALL
-Java_com_cdoapps_gpio_Dallas_listSensors(JNIEnv *env, jclass clazz, jobject bus) {
+Java_com_cdoapps_gpio_Thermometer_listAll(JNIEnv *env, jclass clazz, jobject bus) {
     StackRef stack = StackCreate(FALSE);
     OneWireInfoRef oneWireInfo = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, bus);
     if (!oneWireInfo)
         return NULL;
 
-    DallasInfoList(oneWireInfo, stack);
+    ThermometerInfoList(oneWireInfo, stack);
 
     jclass listClazz = (*env)->FindClass(env, "java/util/ArrayList");
     jmethodID listConstructor = (*env)->GetMethodID(env, listClazz, "<init>", "()V");
     jobject list = (*env)->NewObject(env, listClazz, listConstructor);
 
     jmethodID add = (*env)->GetMethodID(env, listClazz, "add", "(Ljava/lang/Object;)Z");
-    jmethodID dallasConstructor = (*env)->GetMethodID(env, clazz, "<init>", "()V");
+    jmethodID thermometerConstructor = (*env)->GetMethodID(env, clazz, "<init>", "()V");
 
-    DallasInfoRef info = NULL;
+    ThermometerInfoRef info = NULL;
     while ((info = StackPop(stack))) {
-        jobject thiz = (*env)->NewObject(env, clazz, dallasConstructor);
+        jobject thiz = (*env)->NewObject(env, clazz, thermometerConstructor);
         (*env)->CallBooleanMethod(env, list, add, thiz);
         Java_java_lang_Object_setReserved(env, thiz, (jlong)info);
     }
@@ -342,48 +342,48 @@ Java_com_cdoapps_gpio_Dallas_listSensors(JNIEnv *env, jclass clazz, jobject bus)
 }
 
 JNIEXPORT void JNICALL
-Java_com_cdoapps_gpio_Dallas_destroy(JNIEnv * env, jobject thiz) {
-    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+Java_com_cdoapps_gpio_Thermometer_destroy(JNIEnv * env, jobject thiz) {
+    ThermometerInfoRef info = (ThermometerInfoRef)Java_java_lang_Object_getReserved(env, thiz);
     if (info) {
-        DallasInfoFree(info);
+        ThermometerInfoFree(info);
         Java_java_lang_Object_setReserved(env, thiz, 0l);
     }
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_cdoapps_gpio_Dallas_getRom(JNIEnv *env, jobject thiz) {
-    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+Java_com_cdoapps_gpio_Thermometer_getRom(JNIEnv *env, jobject thiz) {
+    ThermometerInfoRef info = (ThermometerInfoRef)Java_java_lang_Object_getReserved(env, thiz);
     if (info)
-        return (*env)->NewStringUTF(env, DallasInfoGetRom(info));
+        return (*env)->NewStringUTF(env, ThermometerInfoGetRom(info));
 
     return NULL;
 }
 
 JNIEXPORT jobject JNICALL
-Java_com_cdoapps_gpio_Dallas_getFamily(JNIEnv *env, jobject thiz) {
-    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+Java_com_cdoapps_gpio_Thermometer_getFamily(JNIEnv *env, jobject thiz) {
+    ThermometerInfoRef info = (ThermometerInfoRef)Java_java_lang_Object_getReserved(env, thiz);
     if (!info)
         return NULL;
 
-    jclass clazz = (*env)->FindClass(env, "com/cdoapps/gpio/Dallas$SensorFamily");
+    jclass clazz = (*env)->FindClass(env, "com/cdoapps/gpio/Thermometer$Family");
 
-    switch (DallasInfoGetFamily(info)) {
-        case DallasSensorFamilyDS18S20: {
+    switch (ThermometerInfoGetFamily(info)) {
+        case ThermometerFamilyDS18S20: {
             jfieldID fieldID = (*env)->GetStaticFieldID(
                     env,
                     clazz ,
                     "DS18S20",
-                    "Lcom/cdoapps/gpio/Dallas$SensorFamily;");
+                    "Lcom/cdoapps/gpio/Thermometer$Family;");
 
             return (*env)->GetStaticObjectField(env, clazz, fieldID);
         }
 
-        case DallasSensorFamilyDS18B20: {
+        case ThermometerFamilyDS18B20: {
             jfieldID fieldID = (*env)->GetStaticFieldID(
                     env,
                     clazz ,
                     "DS18B20",
-                    "Lcom/cdoapps/gpio/Dallas$SensorFamily;");
+                    "Lcom/cdoapps/gpio/Thermometer$Family;");
 
             return (*env)->GetStaticObjectField(env, clazz, fieldID);
         }
@@ -396,27 +396,27 @@ Java_com_cdoapps_gpio_Dallas_getFamily(JNIEnv *env, jobject thiz) {
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_cdoapps_gpio_Dallas_usesParasiticPowerMode(JNIEnv *env, jobject thiz) {
-    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
-    if (info && DallasInfoUsesParasiticPowerMode(info))
+Java_com_cdoapps_gpio_Thermometer_usesParasiticPowerMode(JNIEnv *env, jobject thiz) {
+    ThermometerInfoRef info = (ThermometerInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info && ThermometerInfoUsesParasiticPowerMode(info))
         return JNI_TRUE;
 
     return JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL
-Java_com_cdoapps_gpio_Dallas_convert(JNIEnv * env, jclass clazz, jobject bus,
+Java_com_cdoapps_gpio_Thermometer_convert(JNIEnv * env, jclass clazz, jobject bus,
                                      jboolean parasiticPowerMode) {
     OneWireInfoRef oneWireInfo = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, bus);
     if (oneWireInfo)
-        DallasInfoConvert(oneWireInfo, parasiticPowerMode);
+        ThermometerInfoConvert(oneWireInfo, parasiticPowerMode);
 }
 
 JNIEXPORT jfloat JNICALL
-Java_com_cdoapps_gpio_Dallas_getTemperature(JNIEnv *env, jobject thiz) {
-    DallasInfoRef info = (DallasInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+Java_com_cdoapps_gpio_Thermometer_getTemperature(JNIEnv *env, jobject thiz) {
+    ThermometerInfoRef info = (ThermometerInfoRef)Java_java_lang_Object_getReserved(env, thiz);
     if (info)
-        return (jfloat)DallasInfoGetTemperature(info);
+        return (jfloat)ThermometerInfoGetTemperature(info);
 
     return HUGE_VALF;
 }

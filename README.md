@@ -61,23 +61,23 @@ oneWire.destroy();
 
 ## DS18S20/DS18B20 thermometers
 
-Search for sensors over a 1-Wire bus:
+Search for thermometers over a 1-Wire bus:
 ```java
 // OneWire oneWire
-List<Dallas> sensors = Dallas.listSensors(oneWire);
+List<Thermometer> thermometers = Thermometer.listAll(oneWire);
 ```
 
-Read temperatures measured by the connected sensors:
+Read temperatures measured by the connected thermometers:
 ```java
-Dallas.convert(oneWire, sensors);
+Thermometer.convert(oneWire, thermometers);
 
-for (Dallas sensor : sensors)
-  Log.d(TAG, "Temperature of #" + sensor.getRom() + " is " + sensor.getTemperature());
+for (Thermometer thermometer : thermometers)
+  Log.d(TAG, "Temperature of #" + thermometer.getRom() + " is " + thermometer.getTemperature());
 ```
 
-Once done with the sensors, terminate:
+Once done with the thermometers, terminate:
 ```java
-Dallas.destroyAll(sensors);
+Thermometer.destroyAll(thermometers);
 ```
 
 # Roadmap

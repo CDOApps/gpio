@@ -17,22 +17,22 @@ package com.cdoapps.gpio;
 import java.util.List;
 
 /**
- * The {@code Dallas} class provides communication over a 1-Wire bus to control Dallas digital
+ * The {@code Thermometer} class provides communication over a 1-Wire bus to control Dallas digital
  * thermometers DS18S20 and DS18B20.
  *
  * Datasheets:
  * <ul><li><a href="https://datasheets.maximintegrated.com/en/ds/DS18S20.pdf">DS18S20</a></li>
  * <li><a href="https://datasheets.maximintegrated.com/en/ds/DS18B20.pdf">DS18B20</a></li></ul>
  */
-public class Dallas {
+public class Thermometer {
     static {
         System.loadLibrary("gpio");
     }
 
     /**
-     * The {@code SensorFamily} enum represents the device family of a thermometer.
+     * The {@code Family} enum represents the Dallas family of a thermometer.
      */
-    public enum SensorFamily {
+    public enum Family {
         /**
          * DS18S20
          */
@@ -45,7 +45,7 @@ public class Dallas {
     }
 
     private long mReserved;
-    private Dallas() {
+    private Thermometer() {
     }
 
     /**
@@ -54,18 +54,18 @@ public class Dallas {
      * @param bus a {@code OneWire} object representing a bus configured on one GPIO pin.
      * @return a @{@code List} containing all thermometers of DS18S20 family or DS18B20 family.
      */
-    public static native List<Dallas> listSensors(OneWire bus);
+    public static native List<Thermometer> listAll(OneWire bus);
     /**
-     * Free all the resources associated to many {@code Dallas} objects.
+     * Free all the resources associated to many {@code Thermometer} objects.
      *
-     * @param sensors a {@code List} containing the thermometers to be destroyed.
+     * @param thermometers a {@code List} containing the thermometers to be destroyed.
      */
-    public static void destroyAll(List<Dallas> sensors) {
-        for (Dallas sensor : sensors)
-            sensor.destroy();
+    public static void destroyAll(List<Thermometer> thermometers) {
+        for (Thermometer thermometer : thermometers)
+            thermometer.destroy();
     }
     /**
-     * Free all the resources associated to a {@code Dallas} object.
+     * Free all the resources associated to a {@code Thermometer} object.
      */
     public native void destroy();
 
@@ -80,7 +80,7 @@ public class Dallas {
      *
      * @return the device family of this thermometer.
      */
-    public native SensorFamily getFamily();
+    public native Family getFamily();
     /**
      * Returns {@code true} if this thermometer operates in parasitic power mode.
      *
@@ -91,16 +91,16 @@ public class Dallas {
     /**
      * Issues a temperature conversion on all the thermometers connected to a 1-Wire bus.
      *
-     * This version of {@code convert} checks if all the thermometers contained in {@code sensors}
-     * are powered by an external supply.
+     * This version of {@code convert} checks if all the thermometers contained in
+     * {@code thermometers} are powered by an external supply.
      *
      * @param bus a {@code OneWire} object representing a bus configured on one GPIO pin.
-     * @param sensors a {@code List} containing the thermometers to be destroyed.
+     * @param thermometers a {@code List} containing the thermometers on the `bus`.
      */
-    public static void convert(OneWire bus, List<Dallas> sensors) {
+    public static void convert(OneWire bus, List<Thermometer> thermometers) {
         boolean parasiticPowerMode = false;
-        for (Dallas sensor : sensors) {
-            if (sensor.usesParasiticPowerMode()) {
+        for (Thermometer thermometer : thermometers) {
+            if (thermometer.usesParasiticPowerMode()) {
                 parasiticPowerMode = true;
                 break;
             }

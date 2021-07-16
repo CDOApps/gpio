@@ -7,7 +7,7 @@ LOCAL_C_INCLUDES += \
 LOCAL_MODULE    := gpio
 LOCAL_SRC_FILES := gpio.c \
                    onewire.c \
-                   dallas.c \
+                   thermometer.c \
                    delay.c \
                    stack.c
 

@@ -16,7 +16,8 @@ package com.cdoapps.gpio;
 
 /**
  * The {@code OneWire} class represents a 1-Wire bus communicating over one pin of a {@code GPIO}
- * instance.
+ * instance. It also presents a buffered version which uses two pins (input/output) to allow
+ * communication over long line 1-wire network.
  *
  * This implementation of the 1-Wire bus uses bit banging and spinning, thus it may produce high
  * CPU load.

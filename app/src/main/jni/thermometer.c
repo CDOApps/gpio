@@ -241,6 +241,9 @@ void ThermometerInfoConvert(OneWireInfoRef oneWireInfo, BOOL parasiticPowerMode)
         struct timespec time = { .tv_sec = 1, .tv_nsec = 0 };
         nanosleep(&time, NULL);
     } else {
+        struct timespec time = { .tv_sec = 0, .tv_nsec = 500000000 };
+        nanosleep(&time, NULL);
+
         do {} while (!OneWireInfoReadBit(oneWireInfo));
     }
 }

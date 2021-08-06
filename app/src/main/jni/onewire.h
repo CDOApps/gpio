@@ -50,7 +50,7 @@ OneWireInfoRef OneWireInfoCreate(GPIOInfoRef gpioInfo, int pin);
  * @param inputPin the WiringPi address of the pin which will be read for the 1-Wire bus.
  * @param outputPin the WiringPi address of the pin which will be written for the 1-Wire bus.
  * @return a {@code OneWireInfo} object representing a 1-Wire bus which is initialized to
- *         communicate over one pin.
+ *         communicate over two pins.
  */
 OneWireInfoRef OneWireInfoCreateBuffered(GPIOInfoRef gpioInfo, int inputPin, int outputPin);
 /**

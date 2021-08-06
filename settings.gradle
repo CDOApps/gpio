@@ -1,2 +1,3 @@
 rootProject.name = "gpio"
 include ':app'
+include ':gpio'

@@ -39,7 +39,7 @@ gpio.setValue(0, GPIO.VALUE_LOW);
 
 Terminate the GPIO by calling onPause:
 ```java
-// In Activity.onResume
+// In Activity.onPause
 
 GPIO gpio = GPIO.getInstance();
 gpio.unexportAll();
@@ -80,9 +80,38 @@ Once done with the thermometers, terminate:
 Thermometer.destroyAll(thermometers);
 ```
 
+## Serial
+
+Initialize the Serial bus by calling configure:
+```java
+// In Activity.onResume
+
+Serial serial = new Serial(Serial.DEVICE_PORT1_PATH);
+serial.configure(9600, Serial.DataBits.Height, Serial.Parity.None, Serial.StopBits.One);
+```
+
+Send a message via the configured bus:
+```java
+serial.getOutputStream().write("Hello world".getBytes());
+```
+
+Receive a message from the configured bus:
+```java
+byte[] buffer = new byte[256];
+int size = serial.getInputStream().read(buffer);
+String message = new String(buffer, 0, size);
+```
+
+Terminate the Serial bus:
+```java
+// In Activity.onPause
+serial.destroy();
+```
+
 # Roadmap
 
-- **UART**: add an implementation of serial communication using any GPIO rx/tx pins.
+- **GPIO**: handle signals on falling/rising edge of a GPIO pin.
+- **UART**: add an implementation of serial communication using bit banging on any GPIO rx/tx pins.
 
 # Wiki
 

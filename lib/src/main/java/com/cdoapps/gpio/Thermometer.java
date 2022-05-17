@@ -14,6 +14,7 @@
 
 package com.cdoapps.gpio;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -68,6 +69,57 @@ public class Thermometer {
      * Free all the resources associated to a {@code Thermometer} object.
      */
     public native void destroy();
+
+    /**
+     * Returns a {@code byte[]} representation of many {@code Thermometer} objects.
+     *
+     * This representation may be saved and loaded later without the need to call listAll().
+     *
+     * @return a {@code byte[]} representation of the thermometers to be serialized.
+     */
+    public static byte[] serializeAll(List<Thermometer> thermometers) {
+        int length = 0;
+        List<byte[]> allData = new ArrayList<>();
+        for (Thermometer thermometer : thermometers) {
+            byte[] data = thermometer.serialize();
+            allData.add(data);
+            length += data.length;
+        }
+
+        byte[] result = new byte[length];
+        length = 0;
+        for (byte[] data : allData) {
+            System.arraycopy(data, 0, result, length, data.length);
+            length += data.length;
+        }
+
+        return result;
+    }
+    /**
+     * Returns a {@code byte[]} representation of this thermometer.
+     *
+     * @return a {@code byte[]} representation of this thermometer.
+     */
+    public native byte[] serialize();
+    /**
+     * Returns all the thermometers stored into a {@code byte[]} representation.
+     *
+     * @param bus a {@code OneWire} object representing a bus configured on one GPIO pin.
+     * @param data a {@code byte[]} object representing thermometers that were retrieved from `bus`
+     *             earlier.
+     * @return a @{@code List} containing all thermometers of DS18S20 family or DS18B20 family
+     * stored into `data`.
+     */
+    public static native List<Thermometer> deserializeAll(OneWire bus, byte[] data);
+    /**
+     * Returns a thermometer stored into a {@code byte[]} representation.
+     *
+     * @param bus a {@code OneWire} object representing a bus configured on one GPIO pin.
+     * @param data a {@code byte[]} object representing a thermometer that was retrieved from `bus`
+     *             earlier.
+     * @return a @{@code Thermometer} object stored into `data`.
+     */
+    public static native Thermometer deserialize(OneWire bus, byte[] data);
 
     /**
      * Returns a {@code String} which identifies this thermometer.

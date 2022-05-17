@@ -226,6 +226,7 @@ void ThermometerInfoSelect(ThermometerInfoRef info) {
 }
 
 #include <time.h>
+#include <jni.h>
 
 #define THERMOMETER_SKIP_ROM_COMMAND 0xCC
 #define THERMOMETER_CONVERT_T_COMMAND 0x44
@@ -351,6 +352,89 @@ Java_com_cdoapps_gpio_Thermometer_destroy(JNIEnv * env, jobject thiz) {
         ThermometerInfoFree(info);
         Java_java_lang_Object_setReserved(env, thiz, 0l);
     }
+}
+
+JNIEXPORT jbyteArray JNICALL
+Java_com_cdoapps_gpio_Thermometer_serialize(JNIEnv * env, jobject thiz) {
+    ThermometerInfoRef info = (ThermometerInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (!info)
+        return NULL;
+
+    jsize length = sizeof(struct ThermometerInfo);
+    jbyteArray result = (*env)->NewByteArray(env, length);
+    jbyte *elements = (*env)->GetByteArrayElements(env, result, NULL);
+    memcpy(elements, info, length);
+    memset(elements, sizeof(info->oneWireInfo), 0x0);
+    (*env)->ReleaseByteArrayElements(env, result, elements, 0);
+
+    return elements;
+}
+
+JNIEXPORT jobject JNICALL
+Java_com_cdoapps_gpio_Thermometer_deserializeAll(JNIEnv *env, jclass clazz,
+                                                 jobject bus, jbyteArray data) {
+    OneWireInfoRef oneWireInfo = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, bus);
+    if (!oneWireInfo)
+        return NULL;
+
+    jsize length = (*env)->GetArrayLength(env, data);
+    jsize elementLength = sizeof(struct ThermometerInfo);
+
+    if ((length % elementLength) != 0)
+        return NULL;
+
+    jclass listClazz = (*env)->FindClass(env, "java/util/ArrayList");
+    jmethodID listConstructor = (*env)->GetMethodID(env, listClazz, "<init>", "()V");
+    jobject list = (*env)->NewObject(env, listClazz, listConstructor);
+
+    jmethodID add = (*env)->GetMethodID(env, listClazz, "add", "(Ljava/lang/Object;)Z");
+    jmethodID thermometerConstructor = (*env)->GetMethodID(env, clazz, "<init>", "()V");
+
+    jint offset = 0;
+    jbyte *elements = (*env)->GetByteArrayElements(env, data, NULL);
+    while (offset < length) {
+        jobject thiz = (*env)->NewObject(env, clazz, thermometerConstructor);
+        (*env)->CallBooleanMethod(env, list, add, thiz);
+
+        ThermometerInfoRef info = malloc(sizeof(struct ThermometerInfo));
+        memcpy(info, &elements[offset], elementLength);
+        info->oneWireInfo = oneWireInfo;
+        offset += elementLength;
+
+        Java_java_lang_Object_setReserved(env, thiz, (jlong)info);
+    }
+    (*env)->ReleaseByteArrayElements(env, data, elements, 0);
+
+    return list;
+}
+
+JNIEXPORT jobject JNICALL
+Java_com_cdoapps_gpio_Thermometer_deserialize(JNIEnv *env, jclass clazz,
+                                              jobject bus, jbyteArray data) {
+    OneWireInfoRef oneWireInfo = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, bus);
+    if (!oneWireInfo)
+        return NULL;
+
+    jmethodID thermometerConstructor = (*env)->GetMethodID(env, clazz, "<init>", "()V");
+
+    jsize length = (*env)->GetArrayLength(env, data);
+    jsize elementLength = sizeof(struct ThermometerInfo);
+
+    if (length != elementLength)
+        return NULL;
+
+    jbyte *elements = (*env)->GetByteArrayElements(env, data, NULL);
+    jobject thiz = (*env)->NewObject(env, clazz, thermometerConstructor);
+
+    ThermometerInfoRef info = malloc(sizeof(struct ThermometerInfo));
+    memcpy(info, elements, elementLength);
+    info->oneWireInfo = oneWireInfo;
+
+    Java_java_lang_Object_setReserved(env, thiz, (jlong)info);
+
+    (*env)->ReleaseByteArrayElements(env, data, elements, 0);
+
+    return thiz;
 }
 
 JNIEXPORT jstring JNICALL

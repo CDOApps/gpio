@@ -181,7 +181,7 @@ public class Thermometer {
      * This function blocks for 1s which is arbitrary and should be enough for the conversion to be
      * done (the Maxim Integrated datasheets indicate a maximum conversion time of 750ms).
      */
-    public static native void convert();
+    public native void convert();
 
     /**
      * Returns the temperature measured by this thermometer.

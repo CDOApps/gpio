@@ -109,12 +109,22 @@ BOOL ThermometerInfoUsesParasiticPowerMode(ThermometerInfoRef info);
  * @param parasiticPowerMode if {@code true}, assume the thermometers on the 1-Wire bus are
  *                           powered using parasitic power mode.
  */
-void ThermometerInfoConvert(OneWireInfoRef oneWireInfo, BOOL parasiticPowerMode);
+void ThermometerInfoConvertAll(OneWireInfoRef oneWireInfo, BOOL parasiticPowerMode);
+
+/**
+ * Issues a temperature conversion on this thermometer.
+ *
+ * This function blocks for 1s which is arbitrary and should be enough for the conversion to be done
+ * (the Maxim Integrated datasheets indicate a maximum conversion time of 750ms).
+ *
+ * @param info a {@code ThermometerInfo} object representing the thermometer.
+ */
+void ThermometerInfoConvert(ThermometerInfoRef info);
 
 /**
  * Returns the temperature measured by this thermometer.
  *
- * One may call this function after issuing a conversion by calling {@code ThermometerInfoConvert}.
+ * One may call this function after issuing a conversion by calling {@code ThermometerInfoConvertAll}.
  *
  * @param info a {@code ThermometerInfo} object representing the thermometer.
  * @return the temperature measured by this thermometer.

@@ -160,6 +160,7 @@ public class Thermometer {
 
         convert(bus, parasiticPowerMode);
     }
+
     /**
      * Issues a temperature conversion on all the thermometers connected to a 1-Wire bus.
      *
@@ -173,6 +174,14 @@ public class Thermometer {
      *                           powered using parasitic power mode.
      */
     public static native void convert(OneWire bus, boolean parasiticPowerMode);
+
+    /**
+     * Issues a temperature conversion on this thermometer.
+     *
+     * This function blocks for 1s which is arbitrary and should be enough for the conversion to be
+     * done (the Maxim Integrated datasheets indicate a maximum conversion time of 750ms).
+     */
+    public static native void convert();
 
     /**
      * Returns the temperature measured by this thermometer.

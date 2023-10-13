@@ -231,7 +231,7 @@ void ThermometerInfoSelect(ThermometerInfoRef info) {
 #define THERMOMETER_SKIP_ROM_COMMAND 0xCC
 #define THERMOMETER_CONVERT_T_COMMAND 0x44
 
-void ThermometerInfoConvert(OneWireInfoRef oneWireInfo, BOOL parasiticPowerMode) {
+void ThermometerInfoConvertAll(OneWireInfoRef oneWireInfo, BOOL parasiticPowerMode) {
     if (!OneWireInfoReset(oneWireInfo))
         return;
 
@@ -247,6 +247,17 @@ void ThermometerInfoConvert(OneWireInfoRef oneWireInfo, BOOL parasiticPowerMode)
 
         do {} while (!OneWireInfoReadBit(oneWireInfo));
     }
+}
+
+void ThermometerInfoConvert(ThermometerInfoRef info) {
+    if (!OneWireInfoReset(info->oneWireInfo))
+        return;
+
+    ThermometerInfoSelect(info);
+    OneWireInfoWriteByte(info->oneWireInfo, THERMOMETER_CONVERT_T_COMMAND);
+
+    struct timespec time = { .tv_sec = 1, .tv_nsec = 0 };
+    nanosleep(&time, NULL);
 }
 
 #define THERMOMETER_READ_SCRATCHPAD_COMMAND 0xBE
@@ -491,12 +502,18 @@ Java_com_cdoapps_gpio_Thermometer_usesParasiticPowerMode(JNIEnv *env, jobject th
     return JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL
-Java_com_cdoapps_gpio_Thermometer_convert(JNIEnv * env, jclass clazz, jobject bus,
-                                     jboolean parasiticPowerMode) {
+JNIEXPORT void JNICALL Java_com_cdoapps_gpio_Thermometer_convert__Lcom_cdoapps_gpio_OneWire_2Z(
+        JNIEnv * env, jclass clazz, jobject bus, jboolean parasiticPowerMode) {
     OneWireInfoRef oneWireInfo = (OneWireInfoRef)Java_java_lang_Object_getReserved(env, bus);
     if (oneWireInfo)
-        ThermometerInfoConvert(oneWireInfo, parasiticPowerMode);
+        ThermometerInfoConvertAll(oneWireInfo, parasiticPowerMode);
+}
+
+JNIEXPORT void JNICALL
+Java_com_cdoapps_gpio_Thermometer_convert__(JNIEnv * env, jobject thiz) {
+    ThermometerInfoRef info = (ThermometerInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info)
+        ThermometerInfoConvert(info);
 }
 
 JNIEXPORT jfloat JNICALL

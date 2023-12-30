@@ -19,47 +19,127 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <dirent.h>
 
-#define GPIO_ROOT "/sys/class/gpio"
+#define GPIO_REGISTERS_N2_BASE 0xff634000
+#define GPIO_REGISTERS_N2_MEMORY_SIZE 4096
+#define GPIO_REGISTERS_MEMORY "/dev/mem"
+#define GPIO_REGISTERS_GPIO_MEMORY "/dev/gpiomem"
+
+#define GPIO_SYSFS_ROOT "/sys/class/gpio"
+
+
+struct GPIOPin {
+    int number;
+
+    struct GPIOPinRegisters {
+        int offset;
+        int target;
+
+        int set;
+        int input;
+        int pullUpDownEnable;
+        int pullUpDown;
+        int function;
+        int mux;
+    } registers;
+
+    struct GPIOPinSysfs {
+        int direction;
+        int pull;
+        int value;
+    } sysfs;
+};
 
 // This wiringPi gpio map was found here:
 // https://github.com/hardkernel/wiringPi/blob/master/wiringPi/odroidn2.c
-static const int GPIO_N2_PORTS[64] = {
-        479, 492,	// GPIOX.3		        0	| 1	    GPIOX.16(PWM_E)
-        480, 483,	// GPIOX.4		        2	| 3	    GPIOX.7(PWM_F)
-        476, 477,	// GPIOX.0		        4	| 5	    GPIOX.1
-        478, 473,	// GPIOX.2		        6	| 7	    GPIOA.13
-        493, 494,	// GPIOX.17(I2C-2_SDA)  8	| 9     GPIOX.18(I2C-2_SCL)
-        486, 464,	// GPIOX.10		       	10	| 11	GPIOA.4
-        484, 485,	// GPIOX.8		    	12	| 13	GPIOX.9
-        487, 488,	// GPIOX.11		    	14	| 15	GPIOX.12
-        489,  -1,	// GPIOX.13		    	16	| 17
-        -1,  -1,	// 				        18	| 19
-        -1,  490,	// 				        20	| 21	GPIOX.14
-        491, 481,	// GPIOX.15			    22	| 23	GPIOX.5(PWM_C)
-        482, -1,	// GPIOX.6(PWM_D)		24	| 25	ADC.AIN3
-        472, 495,	// GPIOA.12			    26	| 27	GPIOX.19
-        -1,  -1,	// REF1.8V OUT			28	| 29	ADC.AIN2
-        474, 475,	// GPIOA.14(I2C-3_SDA)	30	| 31	GPIOA.15(I2C-3_SCL)
-        // Padding:
-        -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,	// 32...47
-        -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,	// 48...63
-};
-
-struct GPIOPin {
-    int direction;
-    int value;
+static const struct GPIOPin GPIO_N2_PINS[] = {
+        {.number = 479, .registers = {.offset = 3, .target = 12, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 435}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 492, .registers = {.offset = 16, .target = 64, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 437}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 480, .registers = {.offset = 4, .target = 16, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 435}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 483, .registers = {.offset = 7, .target = 28, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 435}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 476, .registers = {.offset = 0, .target = 0, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 435}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 477, .registers = {.offset = 1, .target = 4, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 435}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 478, .registers = {.offset = 2, .target = 8, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 435}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 473, .registers = {.offset = 13, .target = 52, .set = 289, .input = 290, .pullUpDownEnable = 333, .pullUpDown = 319, .function = 288, .mux = 446}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 493, .registers = {.offset = 17, .target = 68, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 437}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 494, .registers = {.offset = 18, .target = 72, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 437}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 486, .registers = {.offset = 10, .target = 40, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 436}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 464, .registers = {.offset = 4, .target = 16, .set = 289, .input = 290, .pullUpDownEnable = 333, .pullUpDown = 319, .function = 288, .mux = 445}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 484, .registers = {.offset = 8, .target = 32, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 436}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 485, .registers = {.offset = 9, .target = 36, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 436}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 487, .registers = {.offset = 11, .target = 44, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 436}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 488, .registers = {.offset = 12, .target = 48, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 436}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 489, .registers = {.offset = 13, .target = 52, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 436}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 490, .registers = {.offset = 14, .target = 56, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 436}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 491, .registers = {.offset = 15, .target = 60, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 436}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 481, .registers = {.offset = 5, .target = 20, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 435}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 482, .registers = {.offset = 6, .target = 24, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 435}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 472, .registers = {.offset = 12, .target = 48, .set = 289, .input = 290, .pullUpDownEnable = 333, .pullUpDown = 319, .function = 288, .mux = 446}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 495, .registers = {.offset = 19, .target = 76, .set = 279, .input = 280, .pullUpDownEnable = 330, .pullUpDown = 316, .function = 278, .mux = 437}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 474, .registers = {.offset = 14, .target = 56, .set = 289, .input = 290, .pullUpDownEnable = 333, .pullUpDown = 319, .function = 288, .mux = 446}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = 475, .registers = {.offset = 15, .target = 60, .set = 289, .input = 290, .pullUpDownEnable = 333, .pullUpDown = 319, .function = 288, .mux = 446}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
+        {.number = -1, .registers = {.offset = -1, .target = -1, .set = -1, .input = -1, .pullUpDownEnable = -1, .pullUpDown = -1, .function = -1, .mux = -1}, .sysfs = {.direction = -1, .pull = -1, .value = -1}},
 };
 
 struct GPIOInfo {
-    int ports[64];
+    enum GPIOMode {
+        GPIOModeRegisters,
+        GPIOModeSysfs
+    } mode;
 
-    int export;
-    int unexport;
+    struct GPIORegisters {
+        int file;
+        volatile uint32_t *memory;
+    } registers;
+
+    struct GPIOSysfs {
+        int export;
+        int unexport;
+    } sysfs;
 
     struct GPIOPin pins[64];
 };
@@ -68,32 +148,76 @@ struct GPIOInfo {
 GPIOInfoRef GPIOInfoAlloc(void) {
     GPIOInfoRef info = malloc(sizeof(struct GPIOInfo));
 
-    memcpy(info->ports, GPIO_N2_PORTS, 64 * sizeof(int));
-    info->export = open(GPIO_ROOT "/export", O_WRONLY);
-    info->unexport = open(GPIO_ROOT "/unexport", O_WRONLY);
-    for (int pin = 0 ; pin < 64 ; pin++) {
-        struct GPIOPin *pinInfo = &info->pins[pin];
-        pinInfo->direction = -1;
-        pinInfo->value = -1;
+    info->mode = GPIOModeRegisters;
+
+    info->registers.file = -1;
+    info->registers.memory = NULL;
+
+    if (!getuid())
+        info->registers.file = open(GPIO_REGISTERS_MEMORY, O_RDWR | O_SYNC | O_CLOEXEC);
+    else if (access(GPIO_REGISTERS_GPIO_MEMORY, 0) == 0)
+        info->registers.file = open (GPIO_REGISTERS_GPIO_MEMORY, O_RDWR | O_SYNC | O_CLOEXEC);
+
+    if (info->registers.file >= 0) {
+#if defined(__aarch64__)
+        void *memory = mmap(0, GPIO_REGISTERS_N2_MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, info->registers.file, GPIO_REGISTERS_N2_BASE);
+#else
+        void *memory = mmap64(0, GPIO_REGISTERS_N2_MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, info->registers.file, (off64_t)GPIO_REGISTERS_N2_BASE);
+#endif
+
+        if (memory == MAP_FAILED) {
+            close(info->registers.file);
+            info->mode = GPIOModeSysfs;
+        } else {
+            info->registers.memory = memory;
+        }
     }
+
+    if (info->mode == GPIOModeSysfs) {
+        info->sysfs.export = open(GPIO_SYSFS_ROOT "/export", O_WRONLY);
+        info->sysfs.unexport = open(GPIO_SYSFS_ROOT "/unexport", O_WRONLY);
+    } else {
+        info->sysfs.export = -1;
+        info->sysfs.unexport = -1;
+    }
+
+    memcpy(info->pins, GPIO_N2_PINS, sizeof(GPIO_N2_PINS));
 
     return info;
 }
 
 void GPIOInfoFree(GPIOInfoRef info) {
-    if (info->export != -1)
-        close(info->export);
+    switch (info->mode) {
+        case GPIOModeRegisters:
+            if (info->registers.memory)
+                munmap(info->registers.memory, GPIO_REGISTERS_N2_MEMORY_SIZE);
 
-    if (info->unexport != -1)
-        close(info->unexport);
+            if (info->registers.file != -1)
+                close(info->registers.file);
+            break;
 
-    for (int pin = 0 ; pin < 64 ; pin++) {
-        struct GPIOPin *pinInfo = &info->pins[pin];
-        if (pinInfo->direction != -1)
-            close(pinInfo->direction);
+        case GPIOModeSysfs:
+            if (info->sysfs.export != -1)
+                close(info->sysfs.export);
 
-        if (pinInfo->value != -1)
-            close(pinInfo->value);
+            if (info->sysfs.unexport != -1)
+                close(info->sysfs.unexport);
+
+            for (int pin = 0 ; pin < 64 ; pin++) {
+                struct GPIOPin *pinInfo = &info->pins[pin];
+                if (pinInfo->sysfs.direction != -1)
+                    close(pinInfo->sysfs.direction);
+
+                if (pinInfo->sysfs.pull != -1)
+                    close(pinInfo->sysfs.pull);
+
+                if (pinInfo->sysfs.value != -1)
+                    close(pinInfo->sysfs.value);
+            }
+            break;
+
+        default:
+            break;
     }
 
     free(info);
@@ -101,57 +225,68 @@ void GPIOInfoFree(GPIOInfoRef info) {
 
 
 void GPIOInfoExport(GPIOInfoRef info, int pin) {
-    struct GPIOPin *pinInfo = &info->pins[pin];
-    if (pinInfo->direction != -1)
+    if (info->mode != GPIOModeSysfs)
         return;
 
-    int port = info->ports[pin];
+    struct GPIOPin *pinInfo = &info->pins[pin];
+    if (pinInfo->sysfs.direction != -1)
+        return;
 
     char buf[64] = "";
-    sprintf(buf, "%d\n", port);
+    sprintf(buf, "%d\n", pinInfo->number);
 
-    write(info->export, buf, strlen(buf));
+    write(info->sysfs.export, buf, strlen(buf));
 
-    sprintf(buf, GPIO_ROOT "/gpio%d/direction", port);
+    sprintf(buf, GPIO_SYSFS_ROOT "/gpio%d/direction", pinInfo->number);
     for (int try = 0 ; try < 5 ; try++) {
-        pinInfo->direction = open(buf, O_WRONLY);
+        pinInfo->sysfs.direction = open(buf, O_WRONLY);
 
-        if (pinInfo->direction != -1)
+        if (pinInfo->sysfs.direction != -1)
             break;
         else if (try < 4)
             sleep(1);
     }
 
-    if (pinInfo->direction == -1) {
-        sprintf(buf, "%d\n", port);
-        write(info->unexport, buf, strlen(buf));
+    if (pinInfo->sysfs.direction == -1) {
+        sprintf(buf, "%d\n", pinInfo->number);
+        write(info->sysfs.unexport, buf, strlen(buf));
         return;
     }
 
-    sprintf(buf, GPIO_ROOT "/gpio%d/value", port);
-    pinInfo->value = open(buf, O_RDWR);
+    sprintf(buf, GPIO_SYSFS_ROOT "/gpio%d/pull", pinInfo->number);
+    pinInfo->sysfs.pull = open(buf, O_WRONLY);
+
+    sprintf(buf, GPIO_SYSFS_ROOT "/gpio%d/value", pinInfo->number);
+    pinInfo->sysfs.value = open(buf, O_RDWR);
 }
 
 void GPIOInfoUnexport(GPIOInfoRef info, int pin) {
-    struct GPIOPin *pinInfo = &info->pins[pin];
-    if (pinInfo->direction == -1)
+    if (info->mode != GPIOModeSysfs)
         return;
 
-    int port = info->ports[pin];
+    struct GPIOPin *pinInfo = &info->pins[pin];
+    if (pinInfo->sysfs.direction == -1)
+        return;
 
-    if (pinInfo->direction != -1)
-        close(pinInfo->direction);
+    if (pinInfo->sysfs.direction != -1)
+        close(pinInfo->sysfs.direction);
 
-    if (pinInfo->value != -1)
-        close(pinInfo->value);
+    if (pinInfo->sysfs.pull != -1)
+        close(pinInfo->sysfs.pull);
+
+    if (pinInfo->sysfs.value != -1)
+        close(pinInfo->sysfs.value);
 
     char buf[64] = "";
-    sprintf(buf, "%d\n", port);
+    sprintf(buf, "%d\n", pinInfo->number);
 
-    write(info->unexport, buf, strlen(buf));
+    write(info->sysfs.unexport, buf, strlen(buf));
 }
 
 void GPIOInfoUnexportAll(GPIOInfoRef info) {
+    if (info->mode != GPIOModeSysfs)
+        return;
+
     for (int pin = 0 ; pin < 64 ; pin++)
         GPIOInfoUnexport(info, pin);
 }
@@ -159,40 +294,128 @@ void GPIOInfoUnexportAll(GPIOInfoRef info) {
 const char *GPIO_PIN_MODE_INPUT = "in";
 const char *GPIO_PIN_MODE_OUTPUT = "out";
 
+#define GPIO_SELECT() info->registers.memory[pinInfo->registers.mux] &= ~(0xF << pinInfo->registers.target)
+#define GPIO_ENABLE_REGISTER(name) info->registers.memory[pinInfo->registers.name] |= (1 << pinInfo->registers.offset)
+#define GPIO_DISABLE_REGISTER(name) info->registers.memory[pinInfo->registers.name] &= ~(1 << pinInfo->registers.offset)
+#define GPIO_READ_REGISTER(name) (info->registers.memory[pinInfo->registers.name] & (1 << pinInfo->registers.offset))
+
 void GPIOInfoSetMode(GPIOInfoRef info, int pin, const char *mode) {
     struct GPIOPin *pinInfo = &info->pins[pin];
-    if (pinInfo->direction == -1)
-        return;
 
-    char buf[64] = "";
-    sprintf(buf, "%s\n", mode);
+    switch (info->mode) {
+        case GPIOModeRegisters:
+            GPIO_SELECT();
 
-    write(pinInfo->direction, buf, strlen(buf));
+            if (strcmp(GPIO_PIN_MODE_INPUT, mode) == 0)
+                GPIO_ENABLE_REGISTER(function);
+            else if (strcmp(GPIO_PIN_MODE_OUTPUT, mode) == 0)
+                GPIO_DISABLE_REGISTER(function);
+            break;
+
+        case GPIOModeSysfs:
+            if (pinInfo->sysfs.direction == -1)
+                return;
+
+            char buf[64] = "";
+            sprintf(buf, "%s\n", mode);
+
+            write(pinInfo->sysfs.direction, buf, strlen(buf));
+            break;
+
+        default:
+            break;
+    }
+}
+
+const char *GPIO_PIN_PULL_DOWN = "down";
+const char *GPIO_PIN_PULL_UP = "up";
+const char *GPIO_PIN_PULL_OFF = "disable";
+
+void GPIOInfoSetPullState(GPIOInfoRef info, int pin, const char *state) {
+    struct GPIOPin *pinInfo = &info->pins[pin];
+
+    switch (info->mode) {
+        case GPIOModeRegisters:
+            if (strcmp(GPIO_PIN_PULL_OFF, state) == 0) {
+                GPIO_DISABLE_REGISTER(pullUpDownEnable);
+            } else {
+                GPIO_ENABLE_REGISTER(pullUpDownEnable);
+
+                if (strcmp(GPIO_PIN_PULL_DOWN, state) == 0)
+                    GPIO_DISABLE_REGISTER(pullUpDown);
+                else if (strcmp(GPIO_PIN_PULL_UP, state) == 0)
+                    GPIO_ENABLE_REGISTER(pullUpDown);
+            }
+            break;
+
+        case GPIOModeSysfs:
+            if (pinInfo->sysfs.pull == -1)
+                return;
+
+            char buf[64] = "";
+            sprintf(buf, "%s\n", state);
+
+            write(pinInfo->sysfs.pull, buf, strlen(buf));
+            break;
+
+        default:
+            break;
+    }
 }
 
 void GPIOInfoSetValue(GPIOInfoRef info, int pin, int value) {
     struct GPIOPin *pinInfo = &info->pins[pin];
-    if (pinInfo->value == -1)
-        return;
 
-    char buf[64] = "";
-    sprintf(buf, "%d\n", value);
+    switch (info->mode) {
+        case GPIOModeRegisters:
+            if (value)
+                GPIO_ENABLE_REGISTER(set);
+            else
+                GPIO_DISABLE_REGISTER(set);
+            break;
 
-    write(pinInfo->value, buf, strlen(buf));
+        case GPIOModeSysfs:
+            if (pinInfo->sysfs.value == -1)
+                return;
+
+            char buf[64] = "";
+            sprintf(buf, "%d\n", value);
+
+            write(pinInfo->sysfs.value, buf, strlen(buf));
+            break;
+
+        default:
+            break;
+    }
 }
 
 int GPIOInfoGetValue(GPIOInfoRef info, int pin) {
     struct GPIOPin *pinInfo = &info->pins[pin];
-    if (pinInfo->value == -1)
-        return -1;
 
-    lseek(pinInfo->value, 0, SEEK_SET);
+    switch (info->mode) {
+        case GPIOModeRegisters:
+            if (GPIO_READ_REGISTER(input) != 0)
+                return GPIO_PIN_VALUE_HIGH;
 
-    char value = 0x0;
-    if (read(pinInfo->value, &value, 1) < 0)
-        return -1;
+            return GPIO_PIN_VALUE_LOW;
 
-    return (value == '0') ? GPIO_PIN_VALUE_LOW : GPIO_PIN_VALUE_HIGH;
+        case GPIOModeSysfs:
+            if (pinInfo->sysfs.value == -1)
+                return -1;
+
+            lseek(pinInfo->sysfs.value, 0, SEEK_SET);
+
+            char value = 0x0;
+            if (read(pinInfo->sysfs.value, &value, 1) < 0)
+                return -1;
+
+            return (value == '0') ? GPIO_PIN_VALUE_LOW : GPIO_PIN_VALUE_HIGH;
+
+        default:
+            break;
+    }
+
+    return -1;
 }
 
 JNIEXPORT void JNICALL

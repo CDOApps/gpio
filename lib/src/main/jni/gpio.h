@@ -78,6 +78,26 @@ extern const char *GPIO_PIN_MODE_OUTPUT;
 void GPIOInfoSetMode(GPIOInfoRef info, int pin, const char *mode);
 
 /**
+ * "down"
+ * One may call {@code GPIOInfoSetPullState} with this value to use one pin with an internal pull
+ * down resistor.
+ */
+const char *GPIO_PIN_PULL_DOWN;
+/**
+ * "up"
+ * One may call {@code GPIOInfoSetPullState} with this value to use one pin with an internal pull up
+ * resistor.
+ */
+extern const char *GPIO_PIN_PULL_UP;
+/**
+ * "disable"
+ * One may call {@code GPIOInfoSetPullState} with this value to use one pin with a floating state.
+ */
+extern const char *GPIO_PIN_PULL_OFF;
+
+void GPIOInfoSetPullState(GPIOInfoRef info, int pin, const char *state);
+
+/**
  * The value returned for a pin connected to GND.
  */
 #define GPIO_PIN_VALUE_LOW 0

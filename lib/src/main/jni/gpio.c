@@ -469,6 +469,16 @@ Java_com_cdoapps_gpio_GPIO_setMode(JNIEnv * env, jobject thiz, jint pin, jstring
 }
 
 JNIEXPORT void JNICALL
+Java_com_cdoapps_gpio_GPIO_setPullState(JNIEnv * env, jobject thiz, jint pin, jstring state) {
+    GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
+    if (info) {
+        const char *utf8State = (*env)->GetStringUTFChars(env, state, NULL);
+        GPIOInfoSetPullState(info, pin, utf8State);
+        (*env)->ReleaseStringUTFChars(env, state, utf8State);
+    }
+}
+
+JNIEXPORT void JNICALL
 Java_com_cdoapps_gpio_GPIO_setValue(JNIEnv * env, jobject thiz, jint pin, jint value) {
     GPIOInfoRef info = (GPIOInfoRef)Java_java_lang_Object_getReserved(env, thiz);
     if (info)

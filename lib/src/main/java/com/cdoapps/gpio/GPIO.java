@@ -83,6 +83,29 @@ public class GPIO {
     public native void setMode(int pin, String mode);
 
     /**
+     * One may call {@code setPullState} with this value to use one input pin with an internal pull
+     * down resistor.
+     */
+    public static final String PULL_DOWN = "down";
+    /**
+     * One may call {@code setPullState} with this value to use one input pin with an internal pull
+     * up resistor.
+     */
+    public static final String PULL_UP = "up";
+    /**
+     * One may call {@code setPullState} with this value to use one input pin with a floating state.
+     */
+    public static final String PULL_OFF = "disable";
+
+    /**
+     * Changes the internal resistor state of one pin.
+     *
+     * @param pin the WiringPi address of the pin.
+     * @param state should be either {@code PULL_DOWN}, {@code PULL_UP} or {@code PULL_OFF}.
+     */
+    public native void setPullState(int pin, String state);
+
+    /**
      * The value returned for a pin connected to GND.
      */
     public static final int VALUE_LOW = 0;

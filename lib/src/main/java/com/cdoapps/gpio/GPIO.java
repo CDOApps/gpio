@@ -66,6 +66,20 @@ public class GPIO {
     public native void unexportAll();
 
     /**
+     * Checks how the software interfaces with GPIO pins.
+     *
+     * @return {@code true} if 'sysfs' is used, {@code false} if 'mmap' is used.
+     */
+    public native boolean usesLegacyLibrary();
+
+    /**
+     * Sets how the software interfaces with GPIO pins.
+     *
+     * @param legacy if {@code true}, will use 'sysfs', otherwise will use 'mmap'.
+     */
+    public native void setUsesLegacyLibrary(boolean legacy);
+
+    /**
      * One may call {@code setMode} with this value to use one pin as an input.
      */
     public static final String MODE_INPUT = "in";

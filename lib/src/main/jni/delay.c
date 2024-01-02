@@ -16,6 +16,9 @@
 #include "delay.h"
 
 void DelayNanoFrom(struct timespec *date, long delay) {
+    if (0 == delay)
+        return;
+
     struct timespec now;
     long t;
 

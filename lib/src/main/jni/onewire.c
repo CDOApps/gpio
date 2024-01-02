@@ -14,6 +14,9 @@
 
 // This implementation of the Dallas 1-Wire protocol was inspired by the work of Daniel Perron:
 // https://github.com/danjperron/BitBangingDS18B20
+// The timings were reviewed following the '1-Wire Communication Through Software' Application
+// note from Analog Devices:
+// https://www.analog.com/en/technical-articles/1wire-communication-through-software.html
 
 #include "common.h"
 #include "onewire.h"
@@ -24,6 +27,19 @@ struct OneWireInfo {
     GPIOInfoRef gpioInfo;
     int inputPin;
     int outputPin;
+
+    struct OneWireDelays {
+        int a; // Write 1 bit/Read bit: drive bus low delay
+        int b; // Write 1 bit: release bus delay
+        int c; // Write 0 bit: drive bus low delay
+        int d; // Write 0 bit: release bus delay
+        int e; // Read bit: release bus delay
+        int f; // Read bit: recovery delay
+        int g; // Reset: initial delay
+        int h; // Reset: drive bus low delay
+        int i; // Reset: release bus delay
+        int j; // Reset: recovery delay
+    } delays;
 };
 
 OneWireInfoRef OneWireInfoCreate(GPIOInfoRef gpioInfo, int pin) {
@@ -32,6 +48,18 @@ OneWireInfoRef OneWireInfoCreate(GPIOInfoRef gpioInfo, int pin) {
     info->gpioInfo = gpioInfo;
     info->inputPin = pin;
     info->outputPin = -1;
+    info->delays = (struct OneWireDelays){
+        .a = 6,
+        .b = 64,
+        .c = 60,
+        .d = 10,
+        .e = 9,
+        .f = 55,
+        .g = 0,
+        .h = 480,
+        .i = 70,
+        .j = 410
+    };
 
     GPIOInfoExport(gpioInfo, pin);
 
@@ -77,18 +105,18 @@ void OneWireInfoPullDown(OneWireInfoRef info) {
 
 BOOL OneWireInfoReset(OneWireInfoRef info) {
     OneWireInfoPullUp(info);
-    DelayMicro(10);
+    DelayMicro(info->delays.g);
 
     OneWireInfoPullDown(info);
 
-    struct timespec time = { .tv_sec = 0, .tv_nsec = 480000 };
+    struct timespec time = { .tv_sec = 0, .tv_nsec = info->delays.h * 1000 };
     nanosleep(&time, NULL);
 
     OneWireInfoPullUp(info);
-    DelayMicro(60);
+    DelayMicro(info->delays.i);
 
     if (GPIOInfoGetValue(info->gpioInfo, info->inputPin) == GPIO_PIN_VALUE_LOW) {
-        DelayMicro(420);
+        DelayMicro(info->delays.j);
         return TRUE;
     }
 
@@ -100,21 +128,19 @@ void OneWireInfoWriteBit(OneWireInfoRef info, BOOL bit) {
     OneWireInfoPullDown(info);
 
     if (bit) {
-        DelayMicro(1);
+        DelayMicro(info->delays.a);
         OneWireInfoPullUp(info);
-        DelayMicro(60);
+        DelayMicro(info->delays.b);
     } else {
-        DelayMicro(60);
+        DelayMicro(info->delays.c);
         OneWireInfoPullUp(info);
-        DelayMicro(1);
+        DelayMicro(info->delays.d);
     }
 }
 
 void OneWireInfoWriteByte(OneWireInfoRef info, unsigned char value) {
-    for (int position = 0 ; position < 8 ; position++) {
+    for (int position = 0 ; position < 8 ; position++)
         OneWireInfoWriteBit(info, (value & (0x1 << position)) ? TRUE : FALSE);
-        DelayMicro(60);
-    }
 
     struct timespec time = {.tv_sec = 0, .tv_nsec = 100000};
     nanosleep(&time, NULL);
@@ -124,12 +150,12 @@ void OneWireInfoWriteByte(OneWireInfoRef info, unsigned char value) {
 BOOL OneWireInfoReadBit(OneWireInfoRef info) {
     OneWireInfoPullDown(info);
 
-    DelayMicro(1);
+    DelayMicro(info->delays.a);
     OneWireInfoPullUp(info);
-    DelayMicro(2);
+    DelayMicro(info->delays.e);
 
     BOOL bit = (GPIOInfoGetValue(info->gpioInfo, info->inputPin) != GPIO_PIN_VALUE_LOW);
-    DelayMicro(60);
+    DelayMicro(info->delays.f);
 
     return bit;
 }
@@ -140,7 +166,6 @@ unsigned char OneWireInfoReadByte(OneWireInfoRef info) {
     for (int position = 0 ; position < 8 ; position++) {
         if (OneWireInfoReadBit(info))
             byte |= (0x1 << position);
-        DelayMicro(60);
     }
 
     return byte;

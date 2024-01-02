@@ -141,9 +141,6 @@ void OneWireInfoWriteBit(OneWireInfoRef info, BOOL bit) {
 void OneWireInfoWriteByte(OneWireInfoRef info, unsigned char value) {
     for (int position = 0 ; position < 8 ; position++)
         OneWireInfoWriteBit(info, (value & (0x1 << position)) ? TRUE : FALSE);
-
-    struct timespec time = {.tv_sec = 0, .tv_nsec = 100000};
-    nanosleep(&time, NULL);
 }
 
 
